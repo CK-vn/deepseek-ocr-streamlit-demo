@@ -13,7 +13,7 @@ import uuid
 import torch
 from PIL import Image
 
-from model_engine import (
+from app.model_engine import (
     ModelManager,
     run_inference,
     decode_base64_image,
