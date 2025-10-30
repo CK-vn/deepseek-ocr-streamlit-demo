@@ -101,6 +101,19 @@ requests>=2.31.0
 flash-attn>=2.0.0
 EOFREQ
     
+    # Clone the application repository
+    echo "Cloning application repository..."
+    cd /opt/deepseek-ocr
+    su - ubuntu -c "cd /opt/deepseek-ocr && git clone https://github.com/CK-vn/deepseek-ocr-streamlit-demo.git repo"
+    
+    # Copy application files to the correct location
+    echo "Setting up application files..."
+    cp -r /opt/deepseek-ocr/repo/app /opt/deepseek-ocr/
+    cp -r /opt/deepseek-ocr/repo/scripts /opt/deepseek-ocr/
+    cp /opt/deepseek-ocr/repo/requirements.txt /opt/deepseek-ocr/
+    cp -r /opt/deepseek-ocr/repo/.streamlit /opt/deepseek-ocr/
+    chown -R ubuntu:ubuntu /opt/deepseek-ocr
+    
     # Install Python dependencies
     echo "Installing Python dependencies..."
     source /opt/deepseek-ocr/venv/bin/activate
@@ -108,11 +121,6 @@ EOFREQ
     pip install -r /opt/deepseek-ocr/requirements.txt || {
         echo "Warning: Some packages failed to install, continuing..."
     }
-    
-    # Create placeholder app files (will be replaced by actual deployment)
-    cat > /opt/deepseek-ocr/app/__init__.py << 'EOFPY'
-# DeepSeek-OCR Application
-EOFPY
     
     # Create systemd service files
     cat > /etc/systemd/system/deepseek-api.service << 'EOFSVC'
@@ -168,8 +176,18 @@ EOFSVC
     # Reload systemd
     systemctl daemon-reload
     
-    # Note: Services will be started after application files are deployed
-    echo "Services configured but not started (waiting for application deployment)"
+    # Enable and start services
+    echo "Enabling and starting services..."
+    systemctl enable deepseek-api.service
+    systemctl enable deepseek-frontend.service
+    systemctl start deepseek-api.service
+    sleep 10
+    systemctl start deepseek-frontend.service
+    
+    # Check service status
+    echo "Checking service status..."
+    systemctl status deepseek-api.service --no-pager || true
+    systemctl status deepseek-frontend.service --no-pager || true
     
     # Mark second phase as complete
     touch /var/log/user-data-second-boot-complete
