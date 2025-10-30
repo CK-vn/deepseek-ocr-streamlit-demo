@@ -136,6 +136,23 @@ aws ssm start-session --target i-036a7803994ddcdcb --region us-west-2
 - SSM agent has PATH issues after reboot (doesn't affect service operation)
 - Model lazy loading means first inference request is slow
 - GPU memory: ~24GB available on L4
+- User data script may take 15-20 minutes to complete full initialization
+
+### Manual Dependency Installation (if needed)
+
+If the automated setup doesn't complete or you encounter missing dependencies error, you can manually install them:
+
+```bash
+# Connect to instance
+aws ssm start-session --target <INSTANCE_ID> --region us-west-2
+
+# Install missing dependencies
+sudo -u ubuntu /opt/deepseek-ocr/venv/bin/pip install addict matplotlib torchvision
+
+# Restart services
+sudo systemctl restart deepseek-api.service
+sudo systemctl restart deepseek-frontend.service
+```
 
 ### Next Steps
 
