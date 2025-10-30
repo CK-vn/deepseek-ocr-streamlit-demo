@@ -56,7 +56,7 @@ chown -R ubuntu:ubuntu /opt/deepseek-ocr
 
 # Set up Python virtual environment
 echo "Setting up Python virtual environment..."
-su - ubuntu -c "python3.12 -m venv /opt/deepseek-ocr/venv"
+su - ubuntu -c "/usr/bin/python3.12 -m venv /opt/deepseek-ocr/venv"
 
 # Create a flag file to indicate first boot completion
 touch /var/log/user-data-first-boot-complete
