@@ -76,21 +76,27 @@ class ModelManager:
             )
             
             # Load model with bfloat16 precision
-            # Try to use Flash Attention 2 if available, otherwise use default
+            # Try to use Flash Attention 2 if available (required for production)
             try:
+                print("Attempting to load model with Flash Attention 2...")
                 cls._model = AutoModel.from_pretrained(
                     "deepseek-ai/DeepSeek-OCR",
                     attn_implementation="flash_attention_2",
                     trust_remote_code=True,
-                    torch_dtype=torch.bfloat16
+                    torch_dtype=torch.bfloat16,
+                    use_safetensors=True
                 ).cuda().eval()
+                print("✓ Model loaded with Flash Attention 2")
             except Exception as e:
-                print(f"Flash Attention 2 not available, using default attention: {e}")
+                print(f"⚠ Flash Attention 2 not available: {e}")
+                print("Falling back to default attention (slower performance)...")
                 cls._model = AutoModel.from_pretrained(
                     "deepseek-ai/DeepSeek-OCR",
                     trust_remote_code=True,
-                    torch_dtype=torch.bfloat16
+                    torch_dtype=torch.bfloat16,
+                    use_safetensors=True
                 ).cuda().eval()
+                print("✓ Model loaded with default attention")
             
             print("Model loaded successfully!")
             return cls._model, cls._tokenizer
@@ -256,22 +262,34 @@ def run_inference(
         # Run inference with no gradient computation for memory efficiency
         with torch.no_grad():
             try:
-                # Call the model's chat method with the appropriate parameters
-                # Note: The actual API depends on the DeepSeek-OCR model implementation
-                response = model.chat(
-                    tokenizer=tokenizer,
-                    image=processed_image,
-                    prompt=prompt,
-                    base_size=config["base_size"],
-                    image_size=config["image_size"],
-                    crop_mode=config["crop_mode"]
-                )
-            except AttributeError:
-                # Fallback if chat method doesn't exist
-                raise RuntimeError(
-                    "Model does not have expected 'chat' method. "
-                    "Please verify DeepSeek-OCR model implementation."
-                )
+                # DeepSeek-OCR uses the infer() method, not chat()
+                # Save image temporarily for the infer method
+                import tempfile
+                import os
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                    processed_image.save(tmp_file.name)
+                    tmp_path = tmp_file.name
+                
+                try:
+                    # Call the model's infer method (official DeepSeek-OCR API)
+                    response = model.infer(
+                        tokenizer=tokenizer,
+                        prompt=prompt,
+                        image_file=tmp_path,
+                        output_path=None,  # Don't save output files
+                        base_size=config["base_size"],
+                        image_size=config["image_size"],
+                        crop_mode=config["crop_mode"],
+                        save_results=False,
+                        test_compress=False
+                    )
+                finally:
+                    # Clean up temp file
+                    if os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                        
+            except Exception as e:
+                raise RuntimeError(f"Model inference failed: {str(e)}")
         
         # Parse model output to extract text
         # The response should be a string containing the OCR results
