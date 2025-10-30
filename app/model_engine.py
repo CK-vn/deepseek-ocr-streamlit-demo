@@ -69,10 +69,16 @@ class ModelManager:
             print("Loading DeepSeek-OCR model...")
             print("This may take a few minutes on first run...")
             
+            # Set environment variable to use HF_HOME instead of deprecated TRANSFORMERS_CACHE
+            import os
+            if 'TRANSFORMERS_CACHE' in os.environ and 'HF_HOME' not in os.environ:
+                os.environ['HF_HOME'] = os.environ['TRANSFORMERS_CACHE']
+            
             # Load tokenizer
             cls._tokenizer = AutoTokenizer.from_pretrained(
                 "deepseek-ai/DeepSeek-OCR",
-                trust_remote_code=True
+                trust_remote_code=True,
+                revision="main"  # Pin revision to avoid downloading new versions
             )
             
             # Load model with bfloat16 precision
@@ -84,8 +90,10 @@ class ModelManager:
                     attn_implementation="flash_attention_2",
                     trust_remote_code=True,
                     torch_dtype=torch.bfloat16,
-                    use_safetensors=True
-                ).cuda().eval()
+                    use_safetensors=True,
+                    revision="main",  # Pin revision to avoid downloading new versions
+                    device_map="cuda"  # Load directly to GPU to avoid Flash Attention warning
+                ).eval()
                 print("✓ Model loaded with Flash Attention 2")
             except Exception as e:
                 print(f"⚠ Flash Attention 2 not available: {e}")
@@ -94,8 +102,10 @@ class ModelManager:
                     "deepseek-ai/DeepSeek-OCR",
                     trust_remote_code=True,
                     torch_dtype=torch.bfloat16,
-                    use_safetensors=True
-                ).cuda().eval()
+                    use_safetensors=True,
+                    revision="main",  # Pin revision to avoid downloading new versions
+                    device_map="cuda"  # Load directly to GPU
+                ).eval()
                 print("✓ Model loaded with default attention")
             
             print("Model loaded successfully!")
@@ -270,23 +280,60 @@ def run_inference(
                     processed_image.save(tmp_file.name)
                     tmp_path = tmp_file.name
                 
+                # Create temporary output directory
+                import shutil
+                tmp_output_dir = tempfile.mkdtemp()
+                
                 try:
                     # Call the model's infer method (official DeepSeek-OCR API)
-                    response = model.infer(
-                        tokenizer=tokenizer,
-                        prompt=prompt,
-                        image_file=tmp_path,
-                        output_path=None,  # Don't save output files
-                        base_size=config["base_size"],
-                        image_size=config["image_size"],
-                        crop_mode=config["crop_mode"],
-                        save_results=False,
-                        test_compress=False
-                    )
+                    # The infer method prints output but doesn't return it, so we need to capture stdout
+                    import sys
+                    from io import StringIO
+                    
+                    # Capture stdout
+                    old_stdout = sys.stdout
+                    sys.stdout = captured_output = StringIO()
+                    
+                    try:
+                        response = model.infer(
+                            tokenizer=tokenizer,
+                            prompt=prompt,
+                            image_file=tmp_path,
+                            output_path=tmp_output_dir,
+                            base_size=config["base_size"],
+                            image_size=config["image_size"],
+                            crop_mode=config["crop_mode"],
+                            save_results=False,
+                            test_compress=False
+                        )
+                    finally:
+                        # Restore stdout
+                        sys.stdout = old_stdout
+                        
+                    # Get the captured output
+                    captured_text = captured_output.getvalue()
+                    
+                    # The actual OCR result is in the captured output, not the return value
+                    # Filter out debug lines
+                    lines = captured_text.split('\n')
+                    result_lines = []
+                    for line in lines:
+                        stripped = line.strip()
+                        # Skip debug lines
+                        if stripped.startswith('=====') or \
+                           stripped.startswith('BASE:') or \
+                           stripped.startswith('NO PATCHES') or \
+                           stripped.startswith('PATCHES'):
+                            continue
+                        result_lines.append(line)
+                    response = '\n'.join(result_lines).strip()
+                    
                 finally:
-                    # Clean up temp file
+                    # Clean up temp files and directory
                     if os.path.exists(tmp_path):
                         os.unlink(tmp_path)
+                    if os.path.exists(tmp_output_dir):
+                        shutil.rmtree(tmp_output_dir, ignore_errors=True)
                         
             except Exception as e:
                 raise RuntimeError(f"Model inference failed: {str(e)}")

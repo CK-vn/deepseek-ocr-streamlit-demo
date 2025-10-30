@@ -1,32 +1,10 @@
-# Data source for latest Ubuntu 24.04 LTS AMI with GPU support
-data "aws_ami" "ubuntu_gpu" {
-  most_recent = true
-  owners      = ["099720109477"] # Canonical
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-
-  filter {
-    name   = "root-device-type"
-    values = ["ebs"]
-  }
-}
+# Use AWS Deep Learning AMI with CUDA pre-installed
+# AMI: Deep Learning Base AMI with Single CUDA (Ubuntu 22.04)
+# This AMI comes with CUDA, cuDNN, and NVIDIA drivers pre-installed
 
 # EC2 Instance
 resource "aws_instance" "deepseek_ocr" {
-  ami                    = data.aws_ami.ubuntu_gpu.id
+  ami                    = "ami-068b3c2eff653a1a1"
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.ec2.id]

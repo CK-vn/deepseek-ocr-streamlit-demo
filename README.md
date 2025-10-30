@@ -568,7 +568,43 @@ This verifies:
 - Model is loaded
 - GPU is accessible
 
+## Fast Redeploy (Updated Configuration)
+
+When you need to deploy an updated version quickly without waiting for full resource destruction:
+
+```bash
+./scripts/fast_redeploy.sh
+```
+
+This script:
+1. Removes the EC2 instance from Terraform state (makes it an orphan)
+2. Deregisters instance from ALB target groups
+3. Terminates the old instance in the background
+4. Immediately deploys a new instance with updated configuration
+
+**Benefits**:
+- No waiting for full destruction (saves 5-10 minutes)
+- New instance starts immediately
+- Old instance terminates asynchronously
+- Ideal for iterative development and testing
+
+**Use Cases**:
+- Testing user_data script changes
+- Updating application code
+- Changing instance configuration
+- Quick rollback to previous version
+
 ## Cleanup
+
+### Fast Cleanup (Recommended for Redeploy)
+
+Use the fast redeploy script to quickly replace the instance:
+
+```bash
+./scripts/fast_redeploy.sh
+```
+
+### Full Cleanup (Complete Destruction)
 
 To destroy all resources and avoid ongoing charges:
 
@@ -621,3 +657,33 @@ Application Load Balancer
 ## License
 
 This deployment configuration is provided as-is. Please refer to the DeepSeek-OCR model license for model usage terms.
+
+## Current Deployment Status
+
+**Instance ID**: `i-0f3418b7b8b679874`  
+**Status**: ✅ Healthy and Operational  
+**Last Updated**: October 30, 2025
+
+### Endpoints
+- **API Health**: http://deepseek-ocr-alb-1839990555.us-west-2.elb.amazonaws.com:8000/health
+- **API Docs**: http://deepseek-ocr-alb-1839990555.us-west-2.elb.amazonaws.com:8000/docs
+- **Frontend**: http://deepseek-ocr-alb-1839990555.us-west-2.elb.amazonaws.com:8501
+
+### Recent Fixes
+1. **Model Returns "None"**: Fixed flash-attn installation by adding CUDA development tools and proper build dependencies
+2. **SSM Access Issues**: Added bash installation in user_data for SSM agent compatibility
+3. **Flash Attention**: Properly configured flash-attn 2.7.3 with PyTorch 2.6.0 and CUDA 12.6
+4. **Model API**: Updated to use correct `infer()` method instead of `chat()` method
+5. **Fast Redeploy**: Added script to quickly replace instances without waiting for full destruction
+
+### Known Requirements
+- **Flash Attention 2**: Critical for DeepSeek-OCR performance and functionality
+- **CUDA Toolkit**: Required for flash-attn compilation (installed during setup)
+- **PyTorch 2.6.0**: Specific version required for compatibility
+- **Transformers 4.46.3**: Pinned version for model loading
+- **Build Time**: flash-attn compilation takes 10-15 minutes during first boot
+
+### Connect to Instance
+```bash
+aws ssm start-session --target i-0f3418b7b8b679874 --region us-west-2
+```

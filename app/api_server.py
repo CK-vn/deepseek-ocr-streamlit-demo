@@ -132,6 +132,7 @@ async def health_check():
 
 
 @app.get("/models")
+@app.get("/v1/models")
 async def list_models():
     """
     List available models (OpenAI-compatible endpoint).
