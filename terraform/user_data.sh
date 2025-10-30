@@ -87,19 +87,7 @@ if [ -f /var/log/user-data-first-boot-complete ] && [ ! -f /var/log/user-data-se
         echo "Warning: NVIDIA driver not loaded, but continuing..."
     fi
     
-    # Create requirements.txt
-    cat > /opt/deepseek-ocr/requirements.txt << 'EOFREQ'
-torch>=2.0.0
-transformers>=4.30.0
-fastapi>=0.100.0
-uvicorn[standard]>=0.23.0
-pillow>=10.0.0
-pydantic>=2.0.0
-python-multipart>=0.0.6
-streamlit>=1.25.0
-requests>=2.31.0
-flash-attn>=2.0.0
-EOFREQ
+
     
     # Clone the application repository
     echo "Cloning application repository..."
@@ -111,7 +99,7 @@ EOFREQ
     cp -r /opt/deepseek-ocr/repo/app /opt/deepseek-ocr/
     cp -r /opt/deepseek-ocr/repo/scripts /opt/deepseek-ocr/
     cp /opt/deepseek-ocr/repo/requirements.txt /opt/deepseek-ocr/
-    cp -r /opt/deepseek-ocr/repo/.streamlit /opt/deepseek-ocr/
+    cp -r /opt/deepseek-ocr/repo/.streamlit /opt/deepseek-ocr/ 2>/dev/null || true
     chown -R ubuntu:ubuntu /opt/deepseek-ocr
     
     # Install Python dependencies
