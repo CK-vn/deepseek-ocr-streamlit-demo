@@ -75,13 +75,22 @@ class ModelManager:
                 trust_remote_code=True
             )
             
-            # Load model with Flash Attention 2 and bfloat16 precision
-            cls._model = AutoModel.from_pretrained(
-                "deepseek-ai/DeepSeek-OCR",
-                attn_implementation="flash_attention_2",
-                trust_remote_code=True,
-                torch_dtype=torch.bfloat16
-            ).cuda().eval()
+            # Load model with bfloat16 precision
+            # Try to use Flash Attention 2 if available, otherwise use default
+            try:
+                cls._model = AutoModel.from_pretrained(
+                    "deepseek-ai/DeepSeek-OCR",
+                    attn_implementation="flash_attention_2",
+                    trust_remote_code=True,
+                    torch_dtype=torch.bfloat16
+                ).cuda().eval()
+            except Exception as e:
+                print(f"Flash Attention 2 not available, using default attention: {e}")
+                cls._model = AutoModel.from_pretrained(
+                    "deepseek-ai/DeepSeek-OCR",
+                    trust_remote_code=True,
+                    torch_dtype=torch.bfloat16
+                ).cuda().eval()
             
             print("Model loaded successfully!")
             return cls._model, cls._tokenizer
