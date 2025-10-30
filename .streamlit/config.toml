@@ -1,0 +1,26 @@
+[server]
+# Listen on all network interfaces for production deployment
+headless = true
+address = "0.0.0.0"
+port = 8501
+
+# Disable file watcher for production (reduces resource usage)
+fileWatcherType = "none"
+
+# Enable CORS for all origins
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+# Don't automatically open browser on startup
+gatherUsageStats = false
+serverAddress = "0.0.0.0"
+serverPort = 8501
+
+[theme]
+# Optional: Set a custom theme
+primaryColor = "#FF4B4B"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
+font = "sans serif"
