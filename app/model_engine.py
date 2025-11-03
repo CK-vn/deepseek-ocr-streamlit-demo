@@ -380,8 +380,8 @@ def extract_bounding_boxes(text: str, image_size: Tuple[int, int]) -> list:
     """
     Parse detection coordinates from model output using regex and scale to image dimensions.
     
-    The model outputs bounding boxes in normalized coordinates (0-1 range) within
-    special tags: <|det|>x1,y1,x2,y2<|/det|>
+    The model outputs bounding boxes in a normalized coordinate system with 1000 bins (0-999),
+    which directly maps to the original image dimensions within special tags: <|det|>x1,y1,x2,y2<|/det|>
     
     Args:
         text: Model output text containing detection tags
@@ -394,7 +394,7 @@ def extract_bounding_boxes(text: str, image_size: Tuple[int, int]) -> list:
     bboxes = []
     
     # Pattern to match detection coordinates in the format:
-    # <|det|>x1,y1,x2,y2<|/det|> where coordinates are normalized (0-1)
+    # <|det|>x1,y1,x2,y2<|/det|> where coordinates are in 1000-bin system (0-999)
     pattern = r'<\|det\|>([\d.]+),([\d.]+),([\d.]+),([\d.]+)<\|/det\|>'
     matches = re.findall(pattern, text)
     
@@ -405,22 +405,23 @@ def extract_bounding_boxes(text: str, image_size: Tuple[int, int]) -> list:
     
     for match in matches:
         try:
-            # Parse normalized coordinates (0-1 range)
-            norm_x1 = float(match[0])
-            norm_y1 = float(match[1])
-            norm_x2 = float(match[2])
-            norm_y2 = float(match[3])
+            # Parse coordinates from 1000-bin system (0-999 range)
+            bin_x1 = float(match[0])
+            bin_y1 = float(match[1])
+            bin_x2 = float(match[2])
+            bin_y2 = float(match[3])
             
-            # Validate normalized coordinates are in valid range
-            if not all(0 <= coord <= 1 for coord in [norm_x1, norm_y1, norm_x2, norm_y2]):
-                print(f"Warning: Skipping invalid normalized coordinates: {match}")
+            # Validate coordinates are in valid range (0-999)
+            if not all(0 <= coord <= 999 for coord in [bin_x1, bin_y1, bin_x2, bin_y2]):
+                print(f"Warning: Skipping invalid bin coordinates (expected 0-999): {match}")
                 continue
             
-            # Scale normalized coordinates to actual image dimensions
-            x1 = norm_x1 * width
-            y1 = norm_y1 * height
-            x2 = norm_x2 * width
-            y2 = norm_y2 * height
+            # Convert from 1000-bin system to actual pixel coordinates
+            # The bins directly map to image dimensions: bin_coord / 999 * image_dimension
+            x1 = (bin_x1 / 999.0) * width
+            y1 = (bin_y1 / 999.0) * height
+            x2 = (bin_x2 / 999.0) * width
+            y2 = (bin_y2 / 999.0) * height
             
             # Ensure coordinates are within image bounds
             x1 = max(0, min(x1, width))

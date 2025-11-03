@@ -2,6 +2,7 @@
 *.tfstate
 *.tfstate.*
 *.tfstate.backup
+tfplan
 
 # Terraform directory
 .terraform/

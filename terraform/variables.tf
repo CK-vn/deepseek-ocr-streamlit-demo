@@ -45,3 +45,21 @@ variable "allowed_cidr_blocks" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+variable "enable_scheduling" {
+  description = "Enable automatic start/stop scheduling for the EC2 instance"
+  type        = bool
+  default     = true
+}
+
+variable "stop_time_utc" {
+  description = "Time to stop the instance in UTC (24-hour format, e.g., '14' for 2 PM UTC)"
+  type        = string
+  default     = "14" # 2 PM UTC = 9 PM UTC+7
+}
+
+variable "start_time_utc" {
+  description = "Time to start the instance in UTC (24-hour format, e.g., '02' for 2 AM UTC)"
+  type        = string
+  default     = "02" # 2 AM UTC = 9 AM UTC+7
+}

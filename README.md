@@ -568,31 +568,117 @@ This verifies:
 - Model is loaded
 - GPU is accessible
 
-## Fast Redeploy (Updated Configuration)
+## Code Updates and Redeployment
 
-When you need to deploy an updated version quickly without waiting for full resource destruction:
+The deployment uses S3 to manage application code, allowing for easy updates and fast redeployment.
+
+### S3 Bucket Structure
+
+The deployment automatically creates an S3 bucket named `deepseek-ocr-deployment-assets` with the following structure:
+
+```
+s3://deepseek-ocr-deployment-assets/
+├── app/
+│   ├── api_server.py
+│   ├── model_engine.py
+│   └── streamlit_app.py
+└── requirements.txt
+```
+
+### Available Scripts
+
+The `scripts/` directory contains essential deployment and monitoring tools:
+
+1. **`redeploy.sh`** - Automated fast redeployment with updated code
+2. **`monitor_new_instance.sh`** - Monitor instance initialization progress
+3. **`test_ocr_endpoint.py`** - Test API endpoints and OCR functionality
+4. **`setup_app.sh`** - Manual setup script (used by user_data.sh)
+
+### Fast Redeploy (Recommended Method)
+
+When you make code changes and want to deploy them quickly:
 
 ```bash
-./scripts/fast_redeploy.sh
+./scripts/redeploy.sh
+```
+
+**What it does:**
+1. Uploads updated code to S3 (`app/*.py`, `requirements.txt`)
+2. Gets current instance ID from Terraform state
+3. Removes instance from Terraform state (makes it orphaned)
+4. Terminates old instance in background (async)
+5. Deploys new instance with latest code from S3
+6. Displays new instance details and monitoring commands
+
+**Benefits:**
+- ✅ No waiting for full destruction (saves 5-10 minutes)
+- ✅ New instance starts immediately with latest code
+- ✅ Old instance terminates asynchronously
+- ✅ Fully automated - one command does everything
+- ✅ Ideal for iterative development and testing
+
+**Total time:** ~3 minutes (vs 15-20 minutes for full destroy/apply)
+
+### Monitoring Deployment
+
+After running `redeploy.sh`, monitor the initialization:
+
+```bash
+./scripts/monitor_new_instance.sh
 ```
 
 This script:
-1. Removes the EC2 instance from Terraform state (makes it an orphan)
-2. Deregisters instance from ALB target groups
-3. Terminates the old instance in the background
-4. Immediately deploys a new instance with updated configuration
+- Automatically gets instance ID from Terraform
+- Tails the user-data log every 20 seconds
+- Shows when initialization completes
+- Displays service status when ready
 
-**Benefits**:
-- No waiting for full destruction (saves 5-10 minutes)
-- New instance starts immediately
-- Old instance terminates asynchronously
-- Ideal for iterative development and testing
+**Expected initialization time:** 15-20 minutes
+- PyTorch and dependencies: 5-7 minutes
+- Flash Attention compilation: 10-15 minutes
+- Model download and service start: 2-3 minutes
 
-**Use Cases**:
-- Testing user_data script changes
-- Updating application code
-- Changing instance configuration
-- Quick rollback to previous version
+### Testing the Deployment
+
+Once services are running, test the endpoints:
+
+```bash
+./scripts/test_ocr_endpoint.py
+```
+
+This runs a comprehensive test suite:
+- ✓ Health check endpoint
+- ✓ Models list endpoint
+- ✓ OCR inference with test image
+- ✓ Result validation
+
+### Manual Code Updates (Alternative Method)
+
+If you only need to update code without redeploying:
+
+```bash
+# Upload updated code to S3
+BUCKET_NAME="deepseek-ocr-deployment-assets"
+aws s3 cp app/api_server.py s3://${BUCKET_NAME}/app/ --region us-west-2
+aws s3 cp app/model_engine.py s3://${BUCKET_NAME}/app/ --region us-west-2
+aws s3 cp app/streamlit_app.py s3://${BUCKET_NAME}/app/ --region us-west-2
+
+# Update running instance via SSM
+INSTANCE_ID=$(terraform -chdir=terraform output -raw ec2_instance_id)
+aws ssm send-command \
+    --instance-ids ${INSTANCE_ID} \
+    --region us-west-2 \
+    --document-name "AWS-RunShellScript" \
+    --parameters 'commands=[
+        "cd /opt/deepseek-ocr",
+        "aws s3 cp s3://deepseek-ocr-deployment-assets/app/ app/ --recursive",
+        "chown -R ubuntu:ubuntu /opt/deepseek-ocr/app",
+        "systemctl restart deepseek-api",
+        "systemctl restart deepseek-frontend"
+    ]'
+```
+
+**Note:** This method only works for code changes, not dependency updates. For dependency changes, use `redeploy.sh`.
 
 ## Cleanup
 
@@ -631,6 +717,17 @@ Approximate hourly costs (us-west-2 region):
 
 **Total estimated cost**: ~$0.75-$1.00/hour
 
+### Cost Optimization with Automatic Scheduling
+
+The deployment includes automatic instance scheduling to reduce costs:
+- **Instance stops**: Daily at 9:00 PM UTC+7 (2:00 PM UTC)
+- **Instance starts**: Daily at 9:00 AM UTC+7 (2:00 AM UTC)
+- **Cost savings**: ~50% reduction in EC2 costs (12 hours off per day)
+
+To disable scheduling, set `enable_scheduling = false` in your `terraform.tfvars` file.
+
+See [terraform/SCHEDULING.md](terraform/SCHEDULING.md) for detailed scheduling configuration.
+
 ## Architecture Diagram
 
 ```
@@ -660,9 +757,9 @@ This deployment configuration is provided as-is. Please refer to the DeepSeek-OC
 
 ## Current Deployment Status
 
-**Instance ID**: `i-0f3418b7b8b679874`  
+**Instance ID**: `i-0d10f0284a65e7f8f`  
 **Status**: ✅ Healthy and Operational  
-**Last Updated**: October 30, 2025
+**Last Updated**: October 31, 2025
 
 ### Endpoints
 - **API Health**: http://deepseek-ocr-alb-1839990555.us-west-2.elb.amazonaws.com:8000/health
@@ -685,5 +782,11 @@ This deployment configuration is provided as-is. Please refer to the DeepSeek-OC
 
 ### Connect to Instance
 ```bash
-aws ssm start-session --target i-0f3418b7b8b679874 --region us-west-2
+aws ssm start-session --target i-0d10f0284a65e7f8f --region us-west-2
 ```
+
+### Latest Deployment Notes
+- **Code Management**: Application code is now managed via S3 bucket `deepseek-ocr-deployment-assets`
+- **Bounding Box Detection**: Updated Streamlit UI to display extracted bounding boxes from OCR output
+- **Model Output**: Fixed stdout capture to properly extract OCR results from DeepSeek model
+- **Dependencies**: Added `accelerate>=0.26.0` for proper model loading with device_map

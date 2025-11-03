@@ -42,3 +42,18 @@ output "ssm_connect_command" {
   description = "Command to connect to the instance via SSM"
   value       = "aws ssm start-session --target ${aws_instance.deepseek_ocr.id} --region ${var.aws_region}"
 }
+
+output "lambda_function_name" {
+  description = "Name of the Lambda function for instance scheduling"
+  value       = var.enable_scheduling ? aws_lambda_function.instance_scheduler[0].function_name : "Scheduling disabled"
+}
+
+output "stop_schedule" {
+  description = "Schedule for stopping the instance"
+  value       = var.enable_scheduling ? "Weekdays at ${var.stop_time_utc}:00 UTC (9:00 PM UTC+7), Weekends: Friday ${var.stop_time_utc}:00 UTC until Monday ${var.start_time_utc}:00 UTC" : "Scheduling disabled"
+}
+
+output "start_schedule" {
+  description = "Schedule for starting the instance"
+  value       = var.enable_scheduling ? "Weekdays at ${var.start_time_utc}:00 UTC (9:00 AM UTC+7), Weekends: Off Saturday-Sunday" : "Scheduling disabled"
+}

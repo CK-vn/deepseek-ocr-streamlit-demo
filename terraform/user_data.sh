@@ -73,15 +73,20 @@ MAX_JOBS=4 pip install flash-attn==2.7.3 --no-build-isolation || {
 # Download application files from S3
 echo "Downloading application files from S3..."
 cd /opt/deepseek-ocr
-aws s3 cp s3://deepseek-ocr-deployment-assets/deepseek-ocr-app.tar.gz . || {
-    echo "Warning: Could not download app files from S3, will need manual setup"
+
+# Download requirements.txt
+aws s3 cp s3://deepseek-ocr-deployment-assets/requirements.txt . || {
+    echo "Warning: Could not download requirements.txt from S3"
 }
 
-if [ -f deepseek-ocr-app.tar.gz ]; then
-    echo "Extracting application files..."
-    tar -xzf deepseek-ocr-app.tar.gz
-    rm deepseek-ocr-app.tar.gz
-fi
+# Download app files
+mkdir -p app
+aws s3 cp s3://deepseek-ocr-deployment-assets/app/api_server.py app/ || echo "Warning: Could not download api_server.py"
+aws s3 cp s3://deepseek-ocr-deployment-assets/app/model_engine.py app/ || echo "Warning: Could not download model_engine.py"
+aws s3 cp s3://deepseek-ocr-deployment-assets/app/streamlit_app.py app/ || echo "Warning: Could not download streamlit_app.py"
+
+# Create __init__.py for app module
+touch app/__init__.py
 
 # Install application dependencies
 if [ -f requirements.txt ]; then

@@ -237,38 +237,78 @@ def main():
                 
                 if bbox_matches and "processed_image" in st.session_state:
                     st.divider()
-                    st.markdown("### Extracted Bounding Boxes")
+                    st.markdown("### 📍 Extracted Bounding Boxes")
                     
-                    # Parse bounding boxes
-                    bboxes = []
+                    # Get image dimensions
+                    img_width, img_height = st.session_state["processed_image"].size
+                    
+                    # Parse bounding boxes (normalized 0-999 range)
+                    bboxes_normalized = []
+                    bboxes_pixel = []
+                    
                     for match in bbox_matches:
                         try:
                             coords = [int(x.strip()) for x in match.split(',')]
                             if len(coords) == 4:
-                                bboxes.append(coords)
-                        except:
+                                # Store normalized coordinates
+                                bboxes_normalized.append(coords)
+                                
+                                # Convert from 0-999 range to pixel coordinates
+                                # Normalize to 0-1 range first, then scale to image dimensions
+                                x1_norm = coords[0] / 1000.0
+                                y1_norm = coords[1] / 1000.0
+                                x2_norm = coords[2] / 1000.0
+                                y2_norm = coords[3] / 1000.0
+                                
+                                # Scale to actual image dimensions
+                                x1_pixel = int(x1_norm * img_width)
+                                y1_pixel = int(y1_norm * img_height)
+                                x2_pixel = int(x2_norm * img_width)
+                                y2_pixel = int(y2_norm * img_height)
+                                
+                                # Ensure coordinates are within image bounds
+                                x1_pixel = max(0, min(x1_pixel, img_width))
+                                y1_pixel = max(0, min(y1_pixel, img_height))
+                                x2_pixel = max(0, min(x2_pixel, img_width))
+                                y2_pixel = max(0, min(y2_pixel, img_height))
+                                
+                                bboxes_pixel.append([x1_pixel, y1_pixel, x2_pixel, y2_pixel])
+                        except Exception as e:
+                            st.warning(f"Failed to parse bbox: {match} - {e}")
                             continue
                     
-                    if bboxes:
-                        # Draw bounding boxes on image
+                    if bboxes_pixel:
+                        # Draw bounding boxes on image using pixel coordinates
                         from PIL import ImageDraw
                         annotated_img = st.session_state["processed_image"].copy()
                         draw = ImageDraw.Draw(annotated_img)
                         
-                        for bbox in bboxes:
+                        for bbox in bboxes_pixel:
                             x1, y1, x2, y2 = bbox
                             draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
                         
                         st.image(
                             annotated_img,
-                            caption=f"Image with {len(bboxes)} detected bounding box(es)",
+                            caption=f"Image with {len(bboxes_pixel)} detected bounding box(es) | Image size: {img_width}x{img_height}px",
                             use_container_width=True
                         )
                         
                         # Display bounding box coordinates
-                        with st.expander("View Bounding Box Coordinates"):
-                            for i, bbox in enumerate(bboxes, 1):
+                        with st.expander("📊 View Bounding Box Coordinates (Original - Normalized 0-999)"):
+                            st.caption("These are the raw coordinates from the model output (0-999 range)")
+                            for i, bbox in enumerate(bboxes_normalized, 1):
                                 st.text(f"Box {i}: [{bbox[0]}, {bbox[1]}, {bbox[2]}, {bbox[3]}]")
+                        
+                        # Display converted pixel coordinates
+                        with st.expander("🎯 View Bounding Box Coordinates (Converted - Pixel Coordinates)"):
+                            st.caption(f"Coordinates converted to actual image dimensions ({img_width}x{img_height}px)")
+                            for i, (bbox_norm, bbox_pix) in enumerate(zip(bboxes_normalized, bboxes_pixel), 1):
+                                st.text(f"Box {i}:")
+                                st.text(f"  Normalized: [{bbox_norm[0]}, {bbox_norm[1]}, {bbox_norm[2]}, {bbox_norm[3]}]")
+                                st.text(f"  Pixel:      [{bbox_pix[0]}, {bbox_pix[1]}, {bbox_pix[2]}, {bbox_pix[3]}]")
+                                st.text(f"  Size:       {bbox_pix[2]-bbox_pix[0]}x{bbox_pix[3]-bbox_pix[1]}px")
+                                if i < len(bboxes_normalized):
+                                    st.text("")
                     else:
                         st.info("No valid bounding boxes found in the output")
             else:
